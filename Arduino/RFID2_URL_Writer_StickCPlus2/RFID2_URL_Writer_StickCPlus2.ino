@@ -15,7 +15,9 @@
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <sntp.h>
-#include "index.html.h"
+#include <math.h>
+#include <ctype.h>
+#include <string.h>
 
 #define NTP_TIMEZONE  "JST-9"           // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/TZ.h
 #define NTP_SERVER1   "0.pool.ntp.org"
@@ -24,12 +26,9 @@
 
 const char* ssid = "your-ssid";
 const char* password = "your-password";
+const char* kConfigPageUrl = "https://ksasao.github.io/MomentStack/";
 WebServer server(80);
 char localUrl[256];
-
-const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 9 * 3600; // GMT+9 for Japan Standard Time 
-const int daylightOffset_sec = 0;
 
 String posString = "@35.681684,139.786917,17z";
 String textString = "Hello";
@@ -37,36 +36,216 @@ String textString = "Hello";
 Preferences preferences;
 
 MFRC522 mfrc522(0x28); // Create MFRC522 instance
-char str[256];
+char str[512];
 char date_str[64];
 char time_str[64];
 char label_str[64];
 M5GFX display;
 
-int reqCount = 0;
+bool pendingRestart = false;
+unsigned long restartDeadline = 0;
+const unsigned long kRestartDelayMs = 1500;
+
+void sendCorsHeaders() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+String jsonEscape(const String &src) {
+  String escaped;
+  for (size_t i = 0; i < src.length(); ++i) {
+    const char c = src[i];
+    switch (c) {
+      case '\\':
+        escaped += "\\\\";
+        break;
+      case '"':
+        escaped += "\\\"";
+        break;
+      case '\n':
+        escaped += "\\n";
+        break;
+      case '\r':
+        escaped += "\\r";
+        break;
+      default:
+        escaped += c;
+        break;
+    }
+  }
+  return escaped;
+}
+
+String urlEncode(const String &src) {
+  String encoded;
+  char buf[4];
+  for (size_t i = 0; i < src.length(); ++i) {
+    char c = src[i];
+    if (isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
+      encoded += c;
+    } else {
+      snprintf(buf, sizeof(buf), "%%%02X", static_cast<unsigned char>(c));
+      encoded += buf;
+    }
+  }
+  return encoded;
+}
+
+bool urlEncodeToBuffer(const char *src, char *dest, size_t destSize) {
+  if (!src || !dest || destSize == 0) {
+    return false;
+  }
+  size_t out = 0;
+  while (*src) {
+    unsigned char c = static_cast<unsigned char>(*src);
+    if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+      if (out + 1 >= destSize) {
+        return false;
+      }
+      dest[out++] = static_cast<char>(c);
+    } else {
+      if (out + 3 >= destSize) {
+        return false;
+      }
+      static const char kHex[] = "0123456789ABCDEF";
+      dest[out++] = '%';
+      dest[out++] = kHex[(c >> 4) & 0xF];
+      dest[out++] = kHex[c & 0xF];
+    }
+    ++src;
+  }
+  if (out >= destSize) {
+    return false;
+  }
+  dest[out] = '\0';
+  return true;
+}
+
+bool parseStoredPosition(double &lat, double &lng, double &zoom) {
+  if (posString.length() == 0) {
+    return false;
+  }
+  String body = posString;
+  int atIndex = body.indexOf('@');
+  if (atIndex >= 0) {
+    body = body.substring(atIndex + 1);
+  }
+  int firstComma = body.indexOf(',');
+  int secondComma = body.indexOf(',', firstComma + 1);
+  if (firstComma < 0 || secondComma < 0) {
+    return false;
+  }
+  String latStr = body.substring(0, firstComma);
+  String lngStr = body.substring(firstComma + 1, secondComma);
+  String zoomStr = body.substring(secondComma + 1);
+  zoomStr.replace("z", "");
+  lat = latStr.toDouble();
+  lng = lngStr.toDouble();
+  zoom = zoomStr.toDouble();
+  if (isnan(lat) || isnan(lng) || isnan(zoom)) {
+    return false;
+  }
+  return true;
+}
+
+String composePosString(double lat, double lng, double zoom) {
+  String result = "@";
+  result += String(lat, 6);
+  result += ",";
+  result += String(lng, 6);
+  result += ",";
+  result += String(zoom, 0);
+  result += "z";
+  return result;
+}
 
 void handleRoot() {
-    if (server.method() == HTTP_GET) {
-       posString = server.arg("p");
-       textString = server.arg("t");
-       Serial.println(posString);
-       Serial.println(textString);
-       
-       String mes = html;
-       server.send(200, "text/html", mes);
+  if (server.method() != HTTP_GET) {
+    handleNotFound();
+    return;
+  }
 
-       if(reqCount>0){
-         // 地図情報の更新
-         preferences.begin("mapcard", false);
-         preferences.putString("pos",posString);
-         preferences.putString("text",textString);
-         preferences.end();
-         drawText((char*)textString.c_str());
-         delay(2000);
-         ESP.restart();
-       }
-       reqCount++;
-    }
+  String deviceBase = String("http://") + WiFi.localIP().toString();
+  String url = String(kConfigPageUrl);
+  url += (url.indexOf('?') >= 0 ? '&' : '?');
+  url += "edit=t&device=";
+  url += urlEncode(deviceBase);
+
+  String message = "Configuration UI is hosted externally.\n";
+  message += "Open the following URL on a phone connected to the same tethering network:\n\n";
+  message += url;
+  message += "\n";
+  server.send(200, "text/plain", message);
+}
+
+void handleLocationOptions() {
+  sendCorsHeaders();
+  server.send(204);
+}
+
+void handleLocationGet() {
+  double lat = 35.681684;
+  double lng = 139.786917;
+  double zoom = 17;
+  double storedLat = lat;
+  double storedLng = lng;
+  double storedZoom = zoom;
+  if (parseStoredPosition(storedLat, storedLng, storedZoom)) {
+    lat = storedLat;
+    lng = storedLng;
+    zoom = storedZoom;
+  }
+
+  String json = "{";
+  json += "\"lat\":" + String(lat, 6) + ",";
+  json += "\"lng\":" + String(lng, 6) + ",";
+  json += "\"zoom\":" + String(zoom, 0) + ",";
+  json += "\"text\":\"" + jsonEscape(textString) + "\",";
+  json += "\"pos\":\"" + jsonEscape(posString) + "\"";
+  json += "}";
+
+  sendCorsHeaders();
+  server.send(200, "application/json", json);
+}
+
+void handleLocationPost() {
+  sendCorsHeaders();
+  if (!server.hasArg("lat") || !server.hasArg("lng") || !server.hasArg("zoom")) {
+    server.send(400, "application/json", "{\"error\":\"missing parameters\"}");
+    return;
+  }
+
+  double lat = server.arg("lat").toDouble();
+  double lng = server.arg("lng").toDouble();
+  double zoom = server.arg("zoom").toDouble();
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180 || isnan(lat) || isnan(lng)) {
+    server.send(400, "application/json", "{\"error\":\"invalid coordinates\"}");
+    return;
+  }
+  if (isnan(zoom)) {
+    zoom = 17;
+  }
+
+  String newText = server.hasArg("text") ? server.arg("text") : textString;
+  posString = composePosString(lat, lng, zoom);
+  textString = newText;
+
+  preferences.begin("mapcard", false);
+  preferences.putString("pos", posString);
+  preferences.putString("text", textString);
+  preferences.end();
+
+  String shareUrl = String(kConfigPageUrl);
+  shareUrl += (shareUrl.indexOf('?') >= 0 ? '&' : '?');
+  shareUrl += "p=" + urlEncode(posString);
+  shareUrl += "&t=" + urlEncode(textString);
+
+  server.sendHeader("Location", shareUrl);
+  server.send(302, "text/plain", "Redirecting to updated map...");
+
+  pendingRestart = true;
+  restartDeadline = millis() + kRestartDelayMs;
 }
 
 void handleNotFound() {
@@ -117,18 +296,52 @@ void startWebServer(){
   M5.Log.println("RTC updated");
 
   server.on("/", handleRoot);
+  server.on("/api/location", HTTP_OPTIONS, handleLocationOptions);
+  server.on("/api/location", HTTP_GET, handleLocationGet);
+  server.on("/api/location", HTTP_POST, handleLocationPost);
   server.onNotFound(handleNotFound);
   server.begin();
 
   M5.Log.println("Web server started");
 
-  sprintf(localUrl,"http://%s/?p=%s&t=%s&edit=t",WiFi.localIP().toString().c_str(),posString.c_str(),textString.c_str());
+  String deviceBase = String("http://") + WiFi.localIP().toString();
+  String qrTarget = String(kConfigPageUrl);
+  qrTarget += (qrTarget.indexOf('?') >= 0 ? '&' : '?');
+  qrTarget += "p=" + urlEncode(posString);
+  qrTarget += "&t=" + urlEncode(textString);
+  qrTarget += "&edit=t&device=";
+  qrTarget += urlEncode(deviceBase);
+  qrTarget.toCharArray(localUrl, sizeof(localUrl));
+
   M5.Display.clear(0);
   M5.Display.qrcode(localUrl,10,8,120,2);
+  /*
+  M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+  M5.Display.setTextWrap(true);
+  M5.Display.setCursor(140, 10);
+  M5.Display.setTextSize(0.75,1);
+  M5.Display.println("Scan QR");
+  M5.Display.println("Open config");
+  M5.Display.println("Device:" );
+  M5.Display.println(deviceBase);
+  */
 }
 
 
 NfcAdapter nfc = NfcAdapter(&mfrc522);
+
+void logUid(const MFRC522::Uid &uid) {
+  Serial.print("UID      :");
+  for (byte i = 0; i < uid.size; i++) {
+    if (uid.uidByte[i] < 0x10) {
+      Serial.print(" 0");
+    } else {
+      Serial.print(" ");
+    }
+    Serial.print(uid.uidByte[i], HEX);
+  }
+  Serial.println();
+}
 
 void drawText(char* line0,char* line1,char* line2){
   M5.Log.println(line0);
@@ -175,17 +388,17 @@ void loadPreference(){
   posString = preferences.getString("pos",posString);
   textString = preferences.getString("text",textString);
   preferences.end();
-  Serial.println(posString);
-  Serial.println(textString);
+  M5.Log.println(posString.c_str());
+  M5.Log.println(textString.c_str());
 }
 
 void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
   M5.delay(500);
-  loadPreference();
   Wire.begin();
-
+  Serial.begin(115200);
+  loadPreference();
   M5.Log.println("NDEF writer\nPlace a formatted Mifare Classic or Ultralight NFC tag on the reader.");
   //setDate();
   mfrc522.PCD_Init(); // Init MFRC522
@@ -224,16 +437,36 @@ void nfcWriter(void){
       Serial.println(mfrc522.PICC_GetTypeName(piccType));
 
       // Show Uid
-      NfcTag tag = nfc.read();
-      Serial.print("UID      : ");
-      Serial.println(tag.getUidString());
+      logUid(mfrc522.uid);
 
-      String url_pre = String("https://gist.githack.com/ksasao/bc5fc05d0676f3ec07cf8666e8236c8f/raw/?") 
-        + String("p=") + posString + String("&t=");
       getDate(date_str);
       getTime(time_str);
       drawText(date_str,time_str,(char*)textString.c_str());
-      snprintf(str, sizeof(str), "%s%s %s<br>%s", url_pre.c_str(), date_str, time_str, textString.c_str());
+
+      char encodedPos[128];
+      char tagComment[192];
+      char encodedComment[256];
+
+      snprintf(tagComment, sizeof(tagComment), "%s %s<br>%s", date_str, time_str, textString.c_str());
+
+      if (!urlEncodeToBuffer(posString.c_str(), encodedPos, sizeof(encodedPos)) ||
+          !urlEncodeToBuffer(tagComment, encodedComment, sizeof(encodedComment))) {
+        M5.Log.println("URL encode buffer overflow");
+        M5.Speaker.tone(4000,500);
+        drawText("URL too long");
+        return;
+      }
+
+      const char *baseUrl = kConfigPageUrl;
+      const char separator = strchr(baseUrl, '?') ? '&' : '?';
+      int written = snprintf(str, sizeof(str), "%s%c" "p=%s&t=%s", baseUrl, separator, encodedPos, encodedComment);
+      if (written < 0 || written >= static_cast<int>(sizeof(str))) {
+        M5.Log.println("URL build failed");
+        M5.Speaker.tone(4000,500);
+        drawText("URL too long");
+        return;
+      }
+
       Serial.printf("Writing record to NFC tag: %s\n",str);
       NdefMessage message = NdefMessage();
       message.addUriRecord(str);
@@ -264,6 +497,10 @@ void loop() {
       default:
         nfcWriter();
         break;
+    }
+    if (pendingRestart && millis() >= restartDeadline) {
+      pendingRestart = false;
+      ESP.restart();
     }
     delay(100);
 }
