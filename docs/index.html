@@ -253,6 +253,21 @@
         return base + query;
       }
 
+      function toAbsoluteUrl(url) {
+        if (!url) {
+          return '';
+        }
+        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) {
+          return url;
+        }
+        var origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
+        try {
+          return new URL(url, origin).href;
+        } catch (e) {
+          return origin + url;
+        }
+      }
+
       function submitLocationViaForm(payload, returnUrl) {
         var base = resolveDeviceBaseUrl();
         if (!base) {
@@ -278,7 +293,7 @@
         appendField('zoom', payload.zoom);
         appendField('text', payload.comment || '');
         if (returnUrl) {
-          appendField('return', returnUrl);
+          appendField('return', toAbsoluteUrl(returnUrl));
         }
 
         document.body.appendChild(form);
