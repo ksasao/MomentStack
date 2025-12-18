@@ -42,6 +42,10 @@ char time_str[64];
 char label_str[64];
 M5GFX display;
 
+long lastUpdate = millis();
+bool restartScheduled = false;
+unsigned long restartDeadline = 0;
+
 
 void sendCorsHeaders() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -257,9 +261,9 @@ void handleLocationPost() {
   redirectBody += "\">updated map</a>...</body></html>";
   server.send(303, "text/html", redirectBody);
 
-  M5.Log.println("Restarting after config update");
-  delay(250);
-  ESP.restart();
+  M5.Log.println("Scheduling restart after config update");
+  restartScheduled = true;
+  restartDeadline = millis() + 750;
 }
 
 void handleNotFound() {
@@ -329,16 +333,7 @@ void startWebServer(){
 
   M5.Display.clear(0);
   M5.Display.qrcode(localUrl,10,8,120,2);
-  /*
-  M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
-  M5.Display.setTextWrap(true);
-  M5.Display.setCursor(140, 10);
-  M5.Display.setTextSize(0.75,1);
-  M5.Display.println("Scan QR");
-  M5.Display.println("Open config");
-  M5.Display.println("Device:" );
-  M5.Display.println(deviceBase);
-  */
+
 }
 
 
@@ -394,8 +389,6 @@ void getTime(char *str){
       //int second = rtc_time.Seconds; // 秒
       sprintf(str, "%02d:%02d",hours,minute);
 }
-
-long lastUpdate = millis();
 
 void loadPreference(){
   preferences.begin("mapcard", false);
@@ -499,6 +492,12 @@ void nfcWriter(void){
 
 void loop() {
     M5.update();
+    if (restartScheduled && (long)(millis() - restartDeadline) >= 0) {
+        restartScheduled = false;
+        M5.Log.println("Restarting after config update");
+        delay(50);
+        ESP.restart();
+    }
     if (M5.BtnA.wasReleased()) {
         state = 1;
         startWebServer();
