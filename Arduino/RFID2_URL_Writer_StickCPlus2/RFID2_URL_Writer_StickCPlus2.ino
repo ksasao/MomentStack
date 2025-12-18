@@ -242,7 +242,15 @@ void handleLocationPost() {
   shareUrl += "&t=" + urlEncode(textString);
 
   server.sendHeader("Location", shareUrl);
-  server.send(302, "text/plain", "Redirecting to updated map...");
+  server.sendHeader("Refresh", String("0;url=") + shareUrl);
+  String redirectBody = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"0;url=";
+  redirectBody += shareUrl;
+  redirectBody += "\"><script>window.location.replace('";
+  redirectBody += shareUrl;
+  redirectBody += "');</script></head><body>Redirecting to <a href=\"";
+  redirectBody += shareUrl;
+  redirectBody += "\">updated map</a>...</body></html>";
+  server.send(303, "text/html", redirectBody);
 
   pendingRestart = true;
   restartDeadline = millis() + kRestartDelayMs;
