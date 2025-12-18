@@ -75,7 +75,6 @@
   </head>
   <body>
     <div class="map-main" id="map" style="width: 100%; height: 1000px"></div>
-    <iframe id="postTargetFrame" name="postTargetFrame" style="display:none;width:0;height:0;border:0;" aria-hidden="true"></iframe>
     <button id="currentLocationBtn" title="現在地へ移動">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z" />
@@ -237,10 +236,14 @@
         };
       }
 
-      function buildShareUrl(lat, lng, zoom, comment) {
+      function buildShareUrl(lat, lng, zoom, comment, options) {
         var base = window.location.pathname || '/';
         var query = '?p=@' + lat + ',' + lng + ',' + zoom + 'z&t=' + encodeURIComponent(comment || '');
-        if (editmode) {
+        var includeEdit = editmode;
+        if (options && Object.prototype.hasOwnProperty.call(options, 'includeEdit')) {
+          includeEdit = !!options.includeEdit;
+        }
+        if (includeEdit) {
           query += '&edit=t';
         }
         var deviceParam = getUrlParameter('device');
@@ -262,11 +265,6 @@
         form.action = apiUrl;
         form.style.display = 'none';
 
-        var targetFrame = document.getElementById('postTargetFrame');
-        if (targetFrame) {
-          form.target = targetFrame.name;
-        }
-
         function appendField(name, value) {
           var input = document.createElement('input');
           input.type = 'hidden';
@@ -284,36 +282,19 @@
         }
 
         document.body.appendChild(form);
-        var redirectHandled = false;
-
-        function performRedirect() {
-          if (redirectHandled) {
-            return;
-          }
-          redirectHandled = true;
-          if (returnUrl) {
-            window.location.href = returnUrl;
-          }
-        }
-
-        if (targetFrame) {
-          targetFrame.onload = function() {
-            targetFrame.onload = null;
-            performRedirect();
-          };
-        }
-
-        setTimeout(performRedirect, 2000);
         form.submit();
-        setTimeout(function() {
-          form.remove();
-        }, 1000);
         return true;
       }
 
       function updateUrl() {
         var payload = collectFormValues();
-        var targetUrl = buildShareUrl(payload.lat, payload.lng, payload.zoom, payload.comment);
+        var targetUrl = buildShareUrl(
+          payload.lat,
+          payload.lng,
+          payload.zoom,
+          payload.comment,
+          editmode ? { includeEdit: false } : null
+        );
         if (editmode) {
           if (!submitLocationViaForm(payload, targetUrl)) {
             window.location.href = targetUrl;

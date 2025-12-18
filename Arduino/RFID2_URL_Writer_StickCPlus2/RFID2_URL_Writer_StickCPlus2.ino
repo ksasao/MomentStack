@@ -42,9 +42,6 @@ char time_str[64];
 char label_str[64];
 M5GFX display;
 
-bool pendingRestart = false;
-unsigned long restartDeadline = 0;
-const unsigned long kRestartDelayMs = 1500;
 
 void sendCorsHeaders() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -241,19 +238,28 @@ void handleLocationPost() {
   shareUrl += "p=" + urlEncode(posString);
   shareUrl += "&t=" + urlEncode(textString);
 
-  server.sendHeader("Location", shareUrl);
-  server.sendHeader("Refresh", String("0;url=") + shareUrl);
+  String targetUrl = shareUrl;
+  if (server.hasArg("return")) {
+    String requested = server.arg("return");
+    if (requested.length() > 0) {
+      targetUrl = requested;
+    }
+  }
+
+  server.sendHeader("Location", targetUrl);
+  server.sendHeader("Refresh", String("0;url=") + targetUrl);
   String redirectBody = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"0;url=";
-  redirectBody += shareUrl;
+  redirectBody += targetUrl;
   redirectBody += "\"><script>window.location.replace('";
-  redirectBody += shareUrl;
+  redirectBody += targetUrl;
   redirectBody += "');</script></head><body>Redirecting to <a href=\"";
-  redirectBody += shareUrl;
+  redirectBody += targetUrl;
   redirectBody += "\">updated map</a>...</body></html>";
   server.send(303, "text/html", redirectBody);
 
-  pendingRestart = true;
-  restartDeadline = millis() + kRestartDelayMs;
+  M5.Log.println("Restarting after config update");
+  delay(250);
+  ESP.restart();
 }
 
 void handleNotFound() {
@@ -505,10 +511,6 @@ void loop() {
       default:
         nfcWriter();
         break;
-    }
-    if (pendingRestart && millis() >= restartDeadline) {
-      pendingRestart = false;
-      ESP.restart();
     }
     delay(100);
 }
