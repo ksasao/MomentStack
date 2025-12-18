@@ -252,6 +252,7 @@ void handleLocationPost() {
 
   server.sendHeader("Location", targetUrl);
   server.sendHeader("Refresh", String("0;url=") + targetUrl);
+  server.sendHeader("Connection", "close");
   String redirectBody = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"0;url=";
   redirectBody += targetUrl;
   redirectBody += "\"><script>window.location.replace('";
@@ -261,9 +262,9 @@ void handleLocationPost() {
   redirectBody += "\">updated map</a>...</body></html>";
   server.send(303, "text/html", redirectBody);
 
-  M5.Log.println("Scheduling restart after config update");
+  M5.Log.println("Scheduling restart after config update (2s window)");
   restartScheduled = true;
-  restartDeadline = millis() + 750;
+  restartDeadline = millis() + 2000;
 }
 
 void handleNotFound() {
