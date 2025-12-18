@@ -78,6 +78,35 @@ String jsonEscape(const String &src) {
   return escaped;
 }
 
+String htmlEscape(const String &src) {
+  String escaped;
+  escaped.reserve(src.length());
+  for (size_t i = 0; i < src.length(); ++i) {
+    const char c = src[i];
+    switch (c) {
+      case '&':
+        escaped += "&amp;";
+        break;
+      case '<':
+        escaped += "&lt;";
+        break;
+      case '>':
+        escaped += "&gt;";
+        break;
+      case '\"':
+        escaped += "&quot;";
+        break;
+      case '\'':
+        escaped += "&#39;";
+        break;
+      default:
+        escaped += c;
+        break;
+    }
+  }
+  return escaped;
+}
+
 String urlEncode(const String &src) {
   String encoded;
   char buf[4];
@@ -250,17 +279,30 @@ void handleLocationPost() {
     }
   }
 
-  server.sendHeader("Location", targetUrl);
-  server.sendHeader("Refresh", String("0;url=") + targetUrl);
   server.sendHeader("Connection", "close");
-  String redirectBody = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"0;url=";
-  redirectBody += targetUrl;
-  redirectBody += "\"><script>window.location.replace('";
-  redirectBody += targetUrl;
-  redirectBody += "');</script></head><body>Redirecting to <a href=\"";
-  redirectBody += targetUrl;
-  redirectBody += "\">updated map</a>...</body></html>";
-  server.send(303, "text/html", redirectBody);
+  server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  server.sendHeader("Pragma", "no-cache");
+
+  String linkHtml = htmlEscape(targetUrl);
+  String jsTarget = targetUrl;
+  jsTarget.replace("\\", "\\\\");
+  jsTarget.replace("'", "\\'");
+
+  String redirectBody = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">";
+  redirectBody += "<meta http-equiv=\"refresh\" content=\"0;url=";
+  redirectBody += linkHtml;
+  redirectBody += "\">";
+  redirectBody += "<title>Redirecting...</title></head><body>";
+  redirectBody += "<p>Redirecting to <a href=\"";
+  redirectBody += linkHtml;
+  redirectBody += "\">updated map</a>...</p>";
+  redirectBody += "<script>(function(){try{window.top.location.replace('";
+  redirectBody += jsTarget;
+  redirectBody += "');}catch(e){window.location.href='";
+  redirectBody += jsTarget;
+  redirectBody += "';}})();</script></body></html>";
+
+  server.send(200, "text/html", redirectBody);
 
   M5.Log.println("Scheduling restart after config update (2s window)");
   restartScheduled = true;
