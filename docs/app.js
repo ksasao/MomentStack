@@ -125,7 +125,19 @@ function parseConfigFromQuery() {
     return null;
   }
   var text = getUrlParameter('t') || '';
+  // HTMLタグをエスケープしてXSSを防ぎ、改行文字を<br>に変換
+  text = escapeHtmlWithLineBreaks(text);
   return { lat: lat, lng: lng, zoom: zoom, text: text };
+}
+
+// HTMLエスケープ関数（改行対応）
+function escapeHtmlWithLineBreaks(text) {
+  // まずHTMLタグをエスケープ
+  var div = document.createElement('div');
+  div.textContent = text;
+  var escaped = div.innerHTML;
+  // エスケープ後、改行文字を<br>に変換
+  return escaped.replace(/\n/g, '<br>');
 }
 
 function loadDefaultConfig() {
