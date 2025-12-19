@@ -286,7 +286,9 @@ function initializeMap(cfg) {
   }).addTo(map);
 
   marker = L.marker([cfg.lat, cfg.lng]).addTo(map);
-  marker.bindPopup(cfg.text || '', popupOptions).openPopup();
+  // HTMLとして明示的に指定（デフォルトでもHTMLだが念のため）
+  var popupContent = cfg.text || '';
+  marker.bindPopup(popupContent, popupOptions).openPopup();
 
   map.on('move', function() {
     var pos = map.getCenter();
