@@ -36,10 +36,43 @@ function resolveDeviceBaseUrl() {
   if (explicit) {
     var trimmed = explicit.trim();
     if (trimmed.length > 0) {
-      if (/^https?:\/\//i.test(trimmed)) {
-        deviceBaseUrl = trimmed.replace(/\/+$/, '');
+      // IPアドレスまたはlocalhostのみ許可（プライベートネットワーク用）
+      var ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+      var localhostPattern = /^localhost$/i;
+      
+      if (ipPattern.test(trimmed)) {
+        // IPアドレスの範囲検証とプライベートIPチェック
+        var parts = trimmed.split('.');
+        var valid = parts.every(function(part) {
+          var num = parseInt(part, 10);
+          return num >= 0 && num <= 255;
+        });
+        if (!valid) {
+          deviceBaseUrl = '';
+          return deviceBaseUrl;
+        }
+        
+        // プライベートIPアドレスのみ許可（セキュリティ強化）
+        var first = parseInt(parts[0], 10);
+        var second = parseInt(parts[1], 10);
+        var isPrivate = (
+          first === 10 ||  // 10.0.0.0/8
+          (first === 172 && second >= 16 && second <= 31) ||  // 172.16.0.0/12
+          (first === 192 && second === 168) ||  // 192.168.0.0/16
+          (first === 127)  // 127.0.0.0/8 (localhost)
+        );
+        
+        if (isPrivate) {
+          deviceBaseUrl = 'http://' + trimmed;
+        } else {
+          // パブリックIPは拒否
+          deviceBaseUrl = '';
+        }
+      } else if (localhostPattern.test(trimmed)) {
+        deviceBaseUrl = 'http://' + trimmed;
       } else {
-        deviceBaseUrl = ('http://' + trimmed).replace(/\/+$/, '');
+        // 不正な形式
+        deviceBaseUrl = '';
       }
     } else {
       deviceBaseUrl = '';
@@ -98,6 +131,10 @@ function parseConfigFromQuery() {
     return null;
   }
   var text = getUrlParameter('t') || '';
+  // テキスト長制限（DoS対策）
+  if (text.length > 500) {
+    text = text.substring(0, 500);
+  }
   // HTMLタグをエスケープしてXSSを防ぎ、改行文字を<br>に変換
   text = escapeHtmlWithLineBreaks(text);
   return { lat: lat, lng: lng, zoom: zoom, text: text };
@@ -206,9 +243,12 @@ function initializeMap(cfg) {
   }).addTo(map);
 
   marker = L.marker([cfg.lat, cfg.lng]).addTo(map);
-  // HTMLとして明示的に指定（デフォルトでもHTMLだが念のため）
+  // テキストとして安全に表示（HTMLインジェクション防止）
   var popupContent = cfg.text || '';
-  marker.bindPopup(popupContent, popupOptions).openPopup();
+  // Leafletにテキストとして扱わせるため、DOMエレメントを作成
+  var popupDiv = document.createElement('div');
+  popupDiv.innerHTML = popupContent; // 既にescapeHtmlWithLineBreaks()でエスケープ済み
+  marker.bindPopup(popupDiv, popupOptions).openPopup();
 
   map.on('move', function() {
     var pos = map.getCenter();
