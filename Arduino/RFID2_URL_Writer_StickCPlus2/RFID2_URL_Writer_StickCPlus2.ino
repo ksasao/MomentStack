@@ -190,6 +190,63 @@ String composePosString(double lat, double lng, double zoom) {
   return result;
 }
 
+String stripQueryParameter(const String &url, const char *paramName) {
+  if (!paramName) {
+    return url;
+  }
+  int hashIndex = url.indexOf('#');
+  String fragment = "";
+  String working = url;
+  if (hashIndex >= 0) {
+    fragment = url.substring(hashIndex);
+    working = url.substring(0, hashIndex);
+  }
+  int question = working.indexOf('?');
+  if (question < 0) {
+    return working + fragment;
+  }
+  String base = working.substring(0, question);
+  String query = working.substring(question + 1);
+  String filtered;
+  String key = String(paramName);
+  int keyLen = key.length();
+  int start = 0;
+  while (start <= query.length()) {
+    int amp = query.indexOf('&', start);
+    String token;
+    if (amp < 0) {
+      token = query.substring(start);
+      start = query.length() + 1;
+    } else {
+      token = query.substring(start, amp);
+      start = amp + 1;
+    }
+    if (token.length() == 0) {
+      continue;
+    }
+    bool drop = false;
+    if (token.startsWith(key)) {
+      if (token.length() == keyLen) {
+        drop = true;
+      } else if (token.length() > keyLen && token.charAt(keyLen) == '=') {
+        drop = true;
+      }
+    }
+    if (!drop) {
+      if (filtered.length() > 0) {
+        filtered += "&";
+      }
+      filtered += token;
+    }
+  }
+  String rebuilt = base;
+  if (filtered.length() > 0) {
+    rebuilt += "?";
+    rebuilt += filtered;
+  }
+  return rebuilt + fragment;
+}
+
 void handleRoot() {
   if (server.method() != HTTP_GET) {
     handleNotFound();
@@ -199,7 +256,8 @@ void handleRoot() {
   String deviceBase = String("http://") + WiFi.localIP().toString();
   String url = String(kConfigPageUrl);
   url += (url.indexOf('?') >= 0 ? '&' : '?');
-  url += "edit=t&device=";
+  url += "edit=t";
+  url += "&device=";
   url += urlEncode(deviceBase);
 
   String message = "Configuration UI is hosted externally.\n";
@@ -275,7 +333,7 @@ void handleLocationPost() {
   if (server.hasArg("return")) {
     String requested = server.arg("return");
     if (requested.length() > 0) {
-      targetUrl = requested;
+      targetUrl = stripQueryParameter(requested, "device");
     }
   }
 
@@ -370,7 +428,8 @@ void startWebServer(){
   qrTarget += (qrTarget.indexOf('?') >= 0 ? '&' : '?');
   qrTarget += "p=" + urlEncode(posString);
   qrTarget += "&t=" + urlEncode(textString);
-  qrTarget += "&edit=t&device=";
+  qrTarget += "&edit=t";
+  qrTarget += "&device=";
   qrTarget += urlEncode(deviceBase);
   qrTarget.toCharArray(localUrl, sizeof(localUrl));
 
@@ -497,7 +556,7 @@ void nfcWriter(void){
       char tagComment[192];
       char encodedComment[256];
 
-      snprintf(tagComment, sizeof(tagComment), "%s %s<br>%s", date_str, time_str, textString.c_str());
+      snprintf(tagComment, sizeof(tagComment), "%s %s\n%s", date_str, time_str, textString.c_str());
 
       if (!urlEncodeToBuffer(posString.c_str(), encodedPos, sizeof(encodedPos)) ||
           !urlEncodeToBuffer(tagComment, encodedComment, sizeof(encodedComment))) {
