@@ -253,12 +253,11 @@ void handleRoot() {
     return;
   }
 
-  String deviceBase = String("http://") + WiFi.localIP().toString();
+  String deviceIp = WiFi.localIP().toString();
   String url = String(kConfigPageUrl);
   url += (url.indexOf('?') >= 0 ? '&' : '?');
-  url += "edit=t";
-  url += "&device=";
-  url += urlEncode(deviceBase);
+  url += "d=";
+  url += urlEncode(deviceIp);
 
   String message = "Configuration UI is hosted externally.\n";
   message += "Open the following URL on a phone connected to the same tethering network:\n\n";
@@ -333,7 +332,7 @@ void handleLocationPost() {
   if (server.hasArg("return")) {
     String requested = server.arg("return");
     if (requested.length() > 0) {
-      targetUrl = stripQueryParameter(requested, "device");
+      targetUrl = stripQueryParameter(requested, "d");
     }
   }
 
@@ -423,14 +422,10 @@ void startWebServer(){
 
   M5.Log.println("Web server started");
 
-  String deviceBase = String("http://") + WiFi.localIP().toString();
   String qrTarget = String(kConfigPageUrl);
   qrTarget += (qrTarget.indexOf('?') >= 0 ? '&' : '?');
-  qrTarget += "p=" + urlEncode(posString);
-  qrTarget += "&t=" + urlEncode(textString);
-  qrTarget += "&edit=t";
-  qrTarget += "&device=";
-  qrTarget += urlEncode(deviceBase);
+  qrTarget += "d=";
+  qrTarget += urlEncode(WiFi.localIP().toString());
   qrTarget.toCharArray(localUrl, sizeof(localUrl));
 
   M5.Display.clear(0);

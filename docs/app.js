@@ -32,9 +32,18 @@ function resolveDeviceBaseUrl() {
   if (deviceBaseUrl !== null) {
     return deviceBaseUrl;
   }
-  var explicit = getUrlParameter('device');
+  var explicit = getUrlParameter('d');
   if (explicit) {
-    deviceBaseUrl = explicit.replace(/\/+$/, '');
+    var trimmed = explicit.trim();
+    if (trimmed.length > 0) {
+      if (/^https?:\/\//i.test(trimmed)) {
+        deviceBaseUrl = trimmed.replace(/\/+$/, '');
+      } else {
+        deviceBaseUrl = ('http://' + trimmed).replace(/\/+$/, '');
+      }
+    } else {
+      deviceBaseUrl = '';
+    }
   } else {
     deviceBaseUrl = '';
   }
@@ -56,30 +65,12 @@ function buildApiUrl(path) {
 function buildDefaultUrl() {
   var base = window.location.pathname || '/';
   var query = '?p=@35.681307,139.767015,17z&t=Tokyo%20Sta.';
-  if (editmode) {
-    query += '&edit=t';
-  }
-  var deviceParam = getUrlParameter('device');
-  if (deviceParam) {
-    query += '&device=' + encodeURIComponent(deviceParam);
-  }
   return base + query;
 }
 
-function buildShareUrl(lat, lng, zoom, comment, options) {
+function buildShareUrl(lat, lng, zoom, comment) {
   var base = window.location.pathname || '/';
   var query = '?p=@' + lat + ',' + lng + ',' + zoom + 'z&t=' + encodeURIComponent(comment || '');
-  var includeEdit = editmode;
-  if (options && Object.prototype.hasOwnProperty.call(options, 'includeEdit')) {
-    includeEdit = !!options.includeEdit;
-  }
-  if (includeEdit) {
-    query += '&edit=t';
-  }
-  var deviceParam = getUrlParameter('device');
-  if (deviceParam) {
-    query += '&device=' + encodeURIComponent(deviceParam);
-  }
   return base + query;
 }
 
@@ -179,14 +170,22 @@ function fetchDeviceConfig() {
 }
 
 function loadInitialConfig() {
+  var hasDevice = !!resolveDeviceBaseUrl();
+  if (hasDevice) {
+    return fetchDeviceConfig().catch(function(err) {
+      console.warn('Failed to load device config, falling back', err);
+      var queryFallback = parseConfigFromQuery();
+      if (queryFallback) {
+        return queryFallback;
+      }
+      return loadDefaultConfig();
+    });
+  }
   var queryConfig = parseConfigFromQuery();
   if (queryConfig) {
     return Promise.resolve(queryConfig);
   }
-  return fetchDeviceConfig().catch(function(err) {
-    console.warn('Using default config', err);
-    return loadDefaultConfig();
-  });
+  return Promise.resolve(loadDefaultConfig());
 }
 
 // フォーム関連
@@ -202,7 +201,7 @@ function collectFormValues() {
 function submitLocationViaForm(payload, returnUrl) {
   var base = resolveDeviceBaseUrl();
   if (!base) {
-    alert('device パラメータが不足しています。QRコードからページを開いてください。');
+    alert('d パラメータが不足しています。QRコードからページを開いてください。');
     return false;
   }
   var apiUrl = buildApiUrl('/api/location');
@@ -238,8 +237,7 @@ function updateUrl() {
     payload.lat,
     payload.lng,
     payload.zoom,
-    payload.comment,
-    editmode ? { includeEdit: false } : null
+    payload.comment
   );
   if (editmode) {
     if (!submitLocationViaForm(payload, targetUrl)) {
@@ -318,7 +316,7 @@ function initPage() {
   }
 
   currentLocationBtn = document.getElementById('currentLocationBtn');
-  editmode = !!getUrlParameter('edit');
+  editmode = !!resolveDeviceBaseUrl();
   if (editmode) {
     $('#map-input').css('display', 'inline');
     if (currentLocationBtn) {
