@@ -17,7 +17,7 @@ MomentStack pairs a tiny NFC-enabled device with a hosted map page so that a pap
 
 ## Requirements
 - M5StickC Plus2 with the M5Stack RFID 2 Unit (WS1850S/MFRC522 I2C) attached to Port A.
-- Arduino IDE with **M5Stack board package @ 2.1.3** (verified) or PlatformIO capable of compiling ESP32 firmware.
+- Arduino IDE with **M5Stack board package @ 3.2.5** (verified) or PlatformIO capable of compiling ESP32 firmware.
 - Wi-Fi network credentials the device can join (typically your phone's tethering hotspot so the handset and device share a LAN).
 - Formatted Mifare Classic or Ultralight NFC tags.
 

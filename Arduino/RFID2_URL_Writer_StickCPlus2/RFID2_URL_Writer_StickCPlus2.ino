@@ -3,7 +3,7 @@
 // Writes a Tag single URI record (https://m5stack.com/) to an NFC formatted tag. Note this erases all existing records.
 // forked from NDEF Library for Arduino by TheNitek https://github.com/TheNitek/NDEF (BSD License)
 //             RFID_RC522 by M5Stack https://github.com/m5stack/M5Stack/tree/master/examples/Unit/RFID_RC522 (MIT license)
-// (Board) M5Stack 2.1.3 でビルドを確認
+// (Board) M5Stack 3.2.5 でビルドを確認
 // PlusからPlus2への移植は https://lang-ship.com/blog/work/m5stack-m5stickc-plus2-2/ が大変参考になりました
 #include <M5GFX.h>
 #include <M5StickCPlus2.h>
