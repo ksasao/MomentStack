@@ -7,8 +7,9 @@ MomentStack pairs a tiny NFC-enabled device with a hosted map page so that a pap
 ## Key Capabilities
 - NFC writer firmware for M5StickC Plus2 + RFID 2 Unit that encodes Leaflet-based map URLs into Mifare Classic or Ultralight tags.
 - Hosted web app (`docs/`) that renders the location, popup text, and shows the edit overlay automatically when a `d=` device parameter is present in the URL.
-- Embedded HTTP API on the device (`/api/location`) so the web UI can read/write the active coordinates over the local network.
+- Embedded HTTP API on the device (`/api/location`) so the web UI can write the active coordinates over the local network.
 - QR-guided setup flow: press Button A to start the config server, which displays a QR code directly on the device screen for easy access from your phone.
+- Security-focused implementation with input validation, XSS protection, and 64-character text limits to ensure safe operation.
 
 ## Repository Layout
 - `Arduino/RFID2_URL_Writer_StickCPlus2/`: firmware source for the NFC writer, including a lightly modified NDEF stack and MFRC522 I2C driver.
@@ -31,7 +32,7 @@ MomentStack pairs a tiny NFC-enabled device with a hosted map page so that a pap
 1. Power the device. It boots into NFC writer mode and shows date/time/battery info.
 2. Press Button A (release) to enter **Config Mode**. The firmware connects to Wi-Fi, starts an HTTP server on port 80, syncs time via NTP, and displays a QR code on the screen pointing to `https://ksasao.github.io/MomentStack/?p=@35.681684,139.786917,17z&t=Hello&d=<device-ip>`.
 3. Using a phone on the same network, scan the QR code from the device display. The browser loads the hosted map UI with the `d` parameter set to the device's IP address, which unlocks the edit overlay and tells the page how to contact the device API.
-4. Drag the map or use the geolocation button to select the spot, change the popup text, then hit **update**. The page sends a GET request to `http://<device-ip>/api/location` with query parameters, saves the values to NVS, and redirects to the new shareable URL.
+4. Drag the map or use the geolocation button to select the spot, change the popup text (max 64 characters), then hit **update**. The page sends a GET request to `http://<device-ip>/api/location` with query parameters (`lat`, `lng`, `zoom`, `text`), saves the values to NVS, and redirects to a shareable URL built from the stored values.
 5. The device automatically restarts within 3 seconds after applying changes and returns to writer mode.
 
 ## Writing NFC Tags
@@ -45,14 +46,14 @@ MomentStack pairs a tiny NFC-enabled device with a hosted map page so that a pap
 - **Parameters:**
     - `p=@<lat>,<lng>,<zoom>z` (required) sets the map center and zoom.
     - `t=<text>` supplies popup content. Newlines (`\n`) are converted to `<br>` for readability. HTML tags are escaped to prevent XSS.
-    - `d=<device-ip-or-url>` enables the edit overlay/current-location button and points the page at the device that will handle API requests.
+    - `d=<device-ip-or-url>` enables the edit overlay/current-location button and points the page at the device API endpoint.
 - The map is rendered with Leaflet 1.9 and OpenStreetMap tiles; zoom controls appear at the bottom-left.
+- When in edit mode (with `d` parameter), the update button sends location data to the device, which then redirects to a clean shareable URL without the `d` parameter.
 
 ## Device API
-- `GET /api/location` → `{ lat, lng, zoom, text, pos }` representing the values stored in NVS.
-- `GET /api/location?lat=<lat>&lng=<lng>&zoom=<zoom>&text=<text>&return=<url>` updates the stored location and text, then redirects the browser. The `return` parameter (optional) specifies the absolute URL for redirection; the `d` parameter is automatically stripped from the return URL.
-- `POST /api/location` accepts form-urlencoded fields `lat`, `lng`, `zoom`, `text`, and optional `return` (absolute URL) used for redirecting the browser back to the share link.
-- `OPTIONS /api/location` responds with permissive CORS headers so the hosted UI can talk to the device from a different origin while both reside on the same LAN.
+- `GET /api/location?lat=<lat>&lng=<lng>&zoom=<zoom>&text=<text>` updates the stored location and text (text limited to 64 characters), saves to NVS, then returns an HTML page that redirects the browser to a shareable map URL built from the stored values. The redirect URL is always constructed from the device's Preferences, not from request parameters, ensuring data integrity.
+- Input validation: coordinates must be within valid ranges (lat: -90 to 90, lng: -180 to 180). Invalid input returns a 400 error with plain text message.
+- Security: All HTML and JavaScript output is properly escaped to prevent XSS attacks. Content Security Policy headers are applied to redirect responses.
 
 ## Additional Resources
 - Detailed Japanese walkthrough: https://qiita.com/ksasao/items/fb02ea463a9a5fd3823f
