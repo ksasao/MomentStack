@@ -159,30 +159,20 @@ function submitLocationViaForm(payload, returnUrl) {
     alert('d パラメータが不足しています。QRコードからページを開いてください。');
     return false;
   }
-  var apiUrl = buildApiUrl('/api/location');
-  var form = document.createElement('form');
-  form.method = 'POST';
-  form.action = apiUrl;
-  form.style.display = 'none';
-
-  function appendField(name, value) {
-    var input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  }
-
-  appendField('lat', payload.lat);
-  appendField('lng', payload.lng);
-  appendField('zoom', payload.zoom);
-  appendField('text', payload.comment || '');
+  
+  // クエリパラメータを構築
+  var params = new URLSearchParams();
+  params.append('lat', payload.lat);
+  params.append('lng', payload.lng);
+  params.append('zoom', payload.zoom);
+  params.append('text', payload.comment || '');
   if (returnUrl) {
-    appendField('return', toAbsoluteUrl(returnUrl));
+    params.append('return', toAbsoluteUrl(returnUrl));
   }
-
-  document.body.appendChild(form);
-  form.submit();
+  
+  // GETリクエストとしてURLに遷移
+  var apiUrl = buildApiUrl('/api/location') + '?' + params.toString();
+  window.location.href = apiUrl;
   return true;
 }
 

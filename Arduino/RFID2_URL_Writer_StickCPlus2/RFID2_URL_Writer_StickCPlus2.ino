@@ -25,7 +25,7 @@
 #define NTP_SERVER3   "2.pool.ntp.org"
 
 const char* ssid = "your-ssid";
-const char* password = "your-password";
+const char* password = "your-";
 const char* kConfigPageUrl = "https://ksasao.github.io/MomentStack/";
 WebServer server(80);
 char localUrl[256];
@@ -417,7 +417,14 @@ void startWebServer(){
 
   server.on("/", handleRoot);
   server.on("/api/location", HTTP_OPTIONS, handleLocationOptions);
-  server.on("/api/location", HTTP_GET, handleLocationGet);
+  server.on("/api/location", HTTP_GET, []() {
+    // クエリパラメータに lat, lng, zoom があればPOSTハンドラを使用
+    if (server.hasArg("lat") && server.hasArg("lng") && server.hasArg("zoom")) {
+      handleLocationPost();
+    } else {
+      handleLocationGet();
+    }
+  });
   server.on("/api/location", HTTP_POST, handleLocationPost);
   server.onNotFound(handleNotFound);
   server.begin();
