@@ -23,7 +23,7 @@ NfcTag MifareClassic::read()
     {
         if(_nfcShield->MIFARE_Read(4, data, &dataSize) != MFRC522::STATUS_OK)
         {
-#ifdef NDEF_USE_SERIALc:\Users\ksasao\Desktop\github\MomentStack\Arduino\RFID2_URL_Writer_StickCPlus2\RFID2_URL_Writer_StickCPlus2.ino
+#ifdef NDEF_USE_SERIAL
             Serial.println(F("Error. Failed read block 4"));
 #endif
             return NfcTag(_nfcShield->uid.uidByte, _nfcShield->uid.size, NfcTag::TYPE_MIFARE_CLASSIC);
