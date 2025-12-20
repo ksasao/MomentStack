@@ -24,8 +24,8 @@
 #define NTP_SERVER2   "1.pool.ntp.org"
 #define NTP_SERVER3   "2.pool.ntp.org"
 
-const char* ssid = "your-ssid";
-const char* password = "your-password";
+const char* ssid = "0000C30500";
+const char* password = "pepperpepper";
 const char* kConfigPageUrl = "https://ksasao.github.io/MomentStack/";
 WebServer server(80);
 char localUrl[256];
