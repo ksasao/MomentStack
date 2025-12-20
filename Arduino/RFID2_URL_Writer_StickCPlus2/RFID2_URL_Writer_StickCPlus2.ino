@@ -190,12 +190,23 @@ void handleLocationPost() {
   double lat = server.arg("lat").toDouble();
   double lng = server.arg("lng").toDouble();
   double zoom = server.arg("zoom").toDouble();
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180 || isnan(lat) || isnan(lng)) {
+  
+  // より厳格な検証
+  if (isnan(lat) || isnan(lng) || isnan(zoom) || 
+      isinf(lat) || isinf(lng) || isinf(zoom)) {
+    server.send(400, "text/plain", "Invalid numeric values");
+    return;
+  }
+  
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     server.send(400, "text/plain", "Invalid coordinates");
     return;
   }
-  if (isnan(zoom)) {
-    zoom = 17;
+  
+  // ズーム値の範囲チェック
+  if (zoom < 0 || zoom > 20) {
+    server.send(400, "text/plain", "Invalid zoom level");
+    return;
   }
 
   String newText = server.hasArg("text") ? server.arg("text") : textString;
@@ -203,6 +214,12 @@ void handleLocationPost() {
   if (newText.length() > 64) {
     newText = newText.substring(0, 64);
   }
+  
+  // 精度を制限（6桁まで）
+  lat = round(lat * 1000000.0) / 1000000.0;
+  lng = round(lng * 1000000.0) / 1000000.0;
+  zoom = round(zoom);
+  
   posString = composePosString(lat, lng, zoom);
   textString = newText;
 

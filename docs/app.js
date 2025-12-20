@@ -24,7 +24,12 @@ function setForm(lat, lng, zoom, comment) {
   latField.value = typeof lat === 'number' ? lat.toFixed(6) : lat;
   lngField.value = typeof lng === 'number' ? lng.toFixed(6) : lng;
   zoomField.value = typeof zoom === 'number' ? zoom : zoom;
-  document.getElementById('comment_input').value = comment || '';
+  // エスケープ前の生テキストを復元（<br>を\nに戻す）
+  var rawText = (comment || '').replace(/<br>/gi, '\n');
+  // さらにHTMLエンティティをデコード
+  var textarea = document.createElement('textarea');
+  textarea.innerHTML = rawText;
+  document.getElementById('comment_input').value = textarea.value;
 }
 
 // デバイスAPI関連
@@ -130,6 +135,10 @@ function parseConfigFromQuery() {
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     return null;
   }
+  // ズーム値の範囲チェック
+  if (zoom < 0 || zoom > 20) {
+    return null;
+  }
   var text = getUrlParameter('t') || '';
   // テキスト長制限（DoS対策）
   if (text.length > 500) {
@@ -160,11 +169,42 @@ function loadInitialConfig() {
     return Promise.resolve(queryConfig);
   }
   return Promise.resolve(loadDefaultConfig());
-}
-
-// フォーム関連
-function collectFormValues() {
+}var latValue = document.getElementById('lat_input').value;
+  var lngValue = document.getElementById('lng_input').value;
+  var zoomValue = document.getElementById('zoom_input').value;
+  var commentValue = document.getElementById('comment_input').value || '';
+  
+  // 数値検証とサニタイズ
+  var lat = parseFloat(latValue);
+  var lng = parseFloat(lngValue);
+  var zoom = parseFloat(zoomValue);
+  
+  // 範囲チェック
+  if (!isFinite(lat) || lat < -90 || lat > 90) {
+    lat = 35.681307; // デフォルト値
+  }
+  if (!isFinite(lng) || lng < -180 || lng > 180) {
+    lng = 139.767015; // デフォルト値
+  }
+  if (!isFinite(zoom) || zoom < 0 || zoom > 20) {
+    zoom = 17; // デフォルト値
+  }
+  
+  // 精度制限（6桁まで）
+  lat = parseFloat(lat.toFixed(6));
+  lng = parseFloat(lng.toFixed(6));
+  zoom = Math.round(zoom);
+  
+  // テキスト長制限
+  if (commentValue.length > 64) {
+    commentValue = commentValue.substring(0, 64);
+  }
+  
   return {
+    lat: lat,
+    lng: lng,
+    zoom: zoom,
+    comment: commentValue
     lat: document.getElementById('lat_input').value,
     lng: document.getElementById('lng_input').value,
     zoom: document.getElementById('zoom_input').value,
