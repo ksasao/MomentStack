@@ -135,52 +135,7 @@ function loadDefaultConfig() {
   return { lat: 35.681307, lng: 139.767015, zoom: 17, text: 'Tokyo Sta.' };
 }
 
-function fetchDeviceConfig() {
-  if (!window.fetch) {
-    return Promise.reject(new Error('fetch unsupported'));
-  }
-  var apiUrl = buildApiUrl('/api/location');
-  if (window.location.protocol === 'https:' && apiUrl.indexOf('http://') === 0) {
-    return Promise.reject(new Error('mixed content blocked'));
-  }
-  return fetch(apiUrl, { cache: 'no-store', mode: 'cors' })
-    .then(function(response) {
-      if (!response.ok) {
-        throw new Error('Failed to load config');
-      }
-      return response.json();
-    })
-    .then(function(data) {
-      var lat = parseFloat(data.lat);
-      var lng = parseFloat(data.lng);
-      var zoom = parseFloat(data.zoom);
-      if (!isFinite(lat) || !isFinite(lng) || !isFinite(zoom)) {
-        throw new Error('Invalid coordinates');
-      }
-      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        throw new Error('Out of range');
-      }
-      return {
-        lat: lat,
-        lng: lng,
-        zoom: zoom,
-        text: data.text || ''
-      };
-    });
-}
-
 function loadInitialConfig() {
-  var hasDevice = !!resolveDeviceBaseUrl();
-  if (hasDevice) {
-    return fetchDeviceConfig().catch(function(err) {
-      console.warn('Failed to load device config, falling back', err);
-      var queryFallback = parseConfigFromQuery();
-      if (queryFallback) {
-        return queryFallback;
-      }
-      return loadDefaultConfig();
-    });
-  }
   var queryConfig = parseConfigFromQuery();
   if (queryConfig) {
     return Promise.resolve(queryConfig);

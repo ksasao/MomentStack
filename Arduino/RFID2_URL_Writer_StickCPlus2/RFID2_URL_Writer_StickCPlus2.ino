@@ -256,7 +256,9 @@ void handleRoot() {
   String deviceIp = WiFi.localIP().toString();
   String url = String(kConfigPageUrl);
   url += (url.indexOf('?') >= 0 ? '&' : '?');
-  url += "d=";
+  url += "p=" + urlEncode(posString);
+  url += "&t=" + urlEncode(textString);
+  url += "&d=";
   url += urlEncode(deviceIp);
 
   String message = "Configuration UI is hosted externally.\n";
@@ -424,7 +426,9 @@ void startWebServer(){
 
   String qrTarget = String(kConfigPageUrl);
   qrTarget += (qrTarget.indexOf('?') >= 0 ? '&' : '?');
-  qrTarget += "d=";
+  qrTarget += "p=" + urlEncode(posString);
+  qrTarget += "&t=" + urlEncode(textString);
+  qrTarget += "&d=";
   qrTarget += urlEncode(WiFi.localIP().toString());
   qrTarget.toCharArray(localUrl, sizeof(localUrl));
 
