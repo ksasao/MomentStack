@@ -348,24 +348,25 @@ void handleLocationPost() {
   jsTarget.replace("'", "\\'");
 
   String redirectBody = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">";
-  redirectBody += "<meta http-equiv=\"refresh\" content=\"0;url=";
-  redirectBody += linkHtml;
-  redirectBody += "\">";
   redirectBody += "<title>Redirecting...</title></head><body>";
-  redirectBody += "<p>Redirecting to <a href=\"";
+  redirectBody += "<p>Setting saved. Redirecting to <a href=\"";
   redirectBody += linkHtml;
   redirectBody += "\">updated map</a>...</p>";
-  redirectBody += "<script>(function(){try{window.top.location.replace('";
+  redirectBody += "<script>";
+  redirectBody += "setTimeout(function(){";
+  redirectBody += "try{window.top.location.replace('";
   redirectBody += jsTarget;
   redirectBody += "');}catch(e){window.location.href='";
   redirectBody += jsTarget;
-  redirectBody += "';}})();</script></body></html>";
+  redirectBody += "';}";
+  redirectBody += "},1000);";
+  redirectBody += "</script></body></html>";
 
   server.send(200, "text/html", redirectBody);
 
-  M5.Log.println("Scheduling restart after config update (2s window)");
+  M5.Log.println("Scheduling restart after config update (3s window)");
   restartScheduled = true;
-  restartDeadline = millis() + 2000;
+  restartDeadline = millis() + 3000;
 }
 
 void handleNotFound() {
