@@ -169,7 +169,11 @@ function loadInitialConfig() {
     return Promise.resolve(queryConfig);
   }
   return Promise.resolve(loadDefaultConfig());
-}var latValue = document.getElementById('lat_input').value;
+}
+
+// フォーム関連
+function collectFormValues() {
+  var latValue = document.getElementById('lat_input').value;
   var lngValue = document.getElementById('lng_input').value;
   var zoomValue = document.getElementById('zoom_input').value;
   var commentValue = document.getElementById('comment_input').value || '';
@@ -205,10 +209,6 @@ function loadInitialConfig() {
     lng: lng,
     zoom: zoom,
     comment: commentValue
-    lat: document.getElementById('lat_input').value,
-    lng: document.getElementById('lng_input').value,
-    zoom: document.getElementById('zoom_input').value,
-    comment: document.getElementById('comment_input').value || ''
   };
 }
 
