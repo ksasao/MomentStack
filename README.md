@@ -6,7 +6,7 @@ MomentStack pairs a tiny NFC-enabled device with a hosted map page so that a pap
 
 ## Key Capabilities
 - NFC writer firmware for M5StickC Plus2 + RFID 2 Unit that encodes Leaflet-based map URLs into Mifare Classic or Ultralight tags.
-- Hosted web app (`docs/`) that renders the location, popup text, and optional edit controls, driven entirely by query parameters.
+- Hosted web app (`docs/`) that renders the location, popup text, and shows the edit overlay automatically when a `d=` device parameter is present in the URL.
 - Embedded HTTP API on the device (`/api/location`) so the web UI can read/write the active coordinates over the local network.
 - QR-guided setup flow: press Button A to start the config server, then open the generated URL on a tethered phone to adjust content.
 
@@ -29,8 +29,8 @@ MomentStack pairs a tiny NFC-enabled device with a hosted map page so that a pap
 
 ## Configuring Location Data
 1. Power the device. It boots into NFC writer mode and shows date/time/battery info.
-2. Short-press Button A to enter **Config Mode**. The firmware connects to Wi-Fi, starts an HTTP server on port 80, and renders a QR code pointing to `https://ksasao.github.io/MomentStack/??p=@35.681684,139.786917,17z&t=Tokyo%20Sta.&edit=t&device=http://<device-ip>`.
-3. Using a phone on the same network, scan the QR code. The browser loads the hosted map UI with `edit` mode enabled and a `device` parameter so it can talk to the device API.
+2. Short-press Button A to enter **Config Mode**. The firmware connects to Wi-Fi, starts an HTTP server on port 80, and renders a QR code pointing to `https://ksasao.github.io/MomentStack/?p=@35.681684,139.786917,17z&t=Tokyo%20Sta.&d=<device-ip>`.
+3. Using a phone on the same network, scan the QR code. The browser loads the hosted map UI with `d` set to the device’s IP address, which unlocks the edit overlay and tells the page how to contact the device API.
 4. Drag the map or use the geolocation button to select the spot, change the popup text, then hit **update**. The page POSTs to `http://<device-ip>/api/location`, saves the values to NVS, and redirects to the new shareable URL.
 5. Leave Config Mode (the device will reboot itself a few seconds after applying changes) and return to writer mode.
 
@@ -45,8 +45,7 @@ MomentStack pairs a tiny NFC-enabled device with a hosted map page so that a pap
 - **Parameters:**
 	- `p=@<lat>,<lng>,<zoom>z` (required) sets the map center and zoom.
 	- `t=<text>` supplies popup content. Newlines are converted to `<br>` for readability.
-	- `edit=t` reveals the overlay form, current-location button, and allows posting back to the device when `device` is present.
-	- `device=http://<device-ip>` tells the page which local API endpoint to use for `GET/POST /api/location`.
+	- `d=<device-ip-or-url>` both enables the edit overlay/current-location button and points the page at the device that will handle `POST /api/location`.
 - The map is rendered with Leaflet 1.9 and OpenStreetMap tiles; zoom controls appear at the bottom-left.
 
 ## Device API
