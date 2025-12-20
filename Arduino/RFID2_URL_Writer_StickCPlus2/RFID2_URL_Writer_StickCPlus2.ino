@@ -56,7 +56,7 @@ void sendCorsHeaders() {
 String jsonEscape(const String &src) {
   String escaped;
   for (size_t i = 0; i < src.length(); ++i) {
-    const char c = src[i];
+    const unsigned char c = static_cast<unsigned char>(src[i]);
     switch (c) {
       case '\\':
         escaped += "\\\\";
@@ -70,8 +70,21 @@ String jsonEscape(const String &src) {
       case '\r':
         escaped += "\\r";
         break;
+      case '\t':
+        escaped += "\\t";
+        break;
+      case '\b':
+        escaped += "\\b";
+        break;
+      case '\f':
+        escaped += "\\f";
+        break;
       default:
-        escaped += c;
+        if (c < 0x20 || c == 0x7F) {
+          // 制御文字は除去
+          continue;
+        }
+        escaped += static_cast<char>(c);
         break;
     }
   }
@@ -101,6 +114,56 @@ String htmlEscape(const String &src) {
         break;
       default:
         escaped += c;
+        break;
+    }
+  }
+  return escaped;
+}
+
+String jsEscape(const String &src) {
+  String escaped;
+  escaped.reserve(src.length() * 2);
+  for (size_t i = 0; i < src.length(); ++i) {
+    const unsigned char c = static_cast<unsigned char>(src[i]);
+    switch (c) {
+      case '\\':
+        escaped += "\\\\";
+        break;
+      case '\'':
+        escaped += "\\'";
+        break;
+      case '\"':
+        escaped += "\\\"";
+        break;
+      case '\n':
+        escaped += "\\n";
+        break;
+      case '\r':
+        escaped += "\\r";
+        break;
+      case '\t':
+        escaped += "\\t";
+        break;
+      case '\b':
+        escaped += "\\b";
+        break;
+      case '\f':
+        escaped += "\\f";
+        break;
+      case '<':
+        escaped += "\\x3C";
+        break;
+      case '>':
+        escaped += "\\x3E";
+        break;
+      default:
+        if (c < 0x20 || c == 0x7F) {
+          char buf[8];
+          snprintf(buf, sizeof(buf), "\\x%02X", c);
+          escaped += buf;
+        } else {
+          escaped += static_cast<char>(c);
+        }
         break;
     }
   }
@@ -317,6 +380,10 @@ void handleLocationPost() {
   }
 
   String newText = server.hasArg("text") ? server.arg("text") : textString;
+  // 入力長制限: 64文字まで
+  if (newText.length() > 64) {
+    newText = newText.substring(0, 64);
+  }
   posString = composePosString(lat, lng, zoom);
   textString = newText;
 
@@ -341,11 +408,10 @@ void handleLocationPost() {
   server.sendHeader("Connection", "close");
   server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   server.sendHeader("Pragma", "no-cache");
+  server.sendHeader("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'");
 
   String linkHtml = htmlEscape(targetUrl);
-  String jsTarget = targetUrl;
-  jsTarget.replace("\\", "\\\\");
-  jsTarget.replace("'", "\\'");
+  String jsTarget = jsEscape(targetUrl);
 
   String redirectBody = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">";
   redirectBody += "<title>Redirecting...</title></head><body>";
