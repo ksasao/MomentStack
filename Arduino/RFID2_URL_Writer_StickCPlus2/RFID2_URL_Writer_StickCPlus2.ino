@@ -46,51 +46,6 @@ long lastUpdate = millis();
 bool restartScheduled = false;
 unsigned long restartDeadline = 0;
 
-
-void sendCorsHeaders() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
-}
-
-String jsonEscape(const String &src) {
-  String escaped;
-  for (size_t i = 0; i < src.length(); ++i) {
-    const unsigned char c = static_cast<unsigned char>(src[i]);
-    switch (c) {
-      case '\\':
-        escaped += "\\\\";
-        break;
-      case '"':
-        escaped += "\\\"";
-        break;
-      case '\n':
-        escaped += "\\n";
-        break;
-      case '\r':
-        escaped += "\\r";
-        break;
-      case '\t':
-        escaped += "\\t";
-        break;
-      case '\b':
-        escaped += "\\b";
-        break;
-      case '\f':
-        escaped += "\\f";
-        break;
-      default:
-        if (c < 0x20 || c == 0x7F) {
-          // 制御文字は除去
-          continue;
-        }
-        escaped += static_cast<char>(c);
-        break;
-    }
-  }
-  return escaped;
-}
-
 String htmlEscape(const String &src) {
   String escaped;
   escaped.reserve(src.length());
@@ -215,33 +170,6 @@ bool urlEncodeToBuffer(const char *src, char *dest, size_t destSize) {
   return true;
 }
 
-bool parseStoredPosition(double &lat, double &lng, double &zoom) {
-  if (posString.length() == 0) {
-    return false;
-  }
-  String body = posString;
-  int atIndex = body.indexOf('@');
-  if (atIndex >= 0) {
-    body = body.substring(atIndex + 1);
-  }
-  int firstComma = body.indexOf(',');
-  int secondComma = body.indexOf(',', firstComma + 1);
-  if (firstComma < 0 || secondComma < 0) {
-    return false;
-  }
-  String latStr = body.substring(0, firstComma);
-  String lngStr = body.substring(firstComma + 1, secondComma);
-  String zoomStr = body.substring(secondComma + 1);
-  zoomStr.replace("z", "");
-  lat = latStr.toDouble();
-  lng = lngStr.toDouble();
-  zoom = zoomStr.toDouble();
-  if (isnan(lat) || isnan(lng) || isnan(zoom)) {
-    return false;
-  }
-  return true;
-}
-
 String composePosString(double lat, double lng, double zoom) {
   String result = "@";
   result += String(lat, 6);
@@ -310,61 +238,9 @@ String stripQueryParameter(const String &url, const char *paramName) {
   return rebuilt + fragment;
 }
 
-void handleRoot() {
-  if (server.method() != HTTP_GET) {
-    handleNotFound();
-    return;
-  }
-
-  String deviceIp = WiFi.localIP().toString();
-  String url = String(kConfigPageUrl);
-  url += (url.indexOf('?') >= 0 ? '&' : '?');
-  url += "p=" + urlEncode(posString);
-  url += "&t=" + urlEncode(textString);
-  url += "&d=";
-  url += urlEncode(deviceIp);
-
-  String message = "Configuration UI is hosted externally.\n";
-  message += "Open the following URL on a phone connected to the same tethering network:\n\n";
-  message += url;
-  message += "\n";
-  server.send(200, "text/plain", message);
-}
-
-void handleLocationOptions() {
-  sendCorsHeaders();
-  server.send(204);
-}
-
-void handleLocationGet() {
-  double lat = 35.681684;
-  double lng = 139.786917;
-  double zoom = 17;
-  double storedLat = lat;
-  double storedLng = lng;
-  double storedZoom = zoom;
-  if (parseStoredPosition(storedLat, storedLng, storedZoom)) {
-    lat = storedLat;
-    lng = storedLng;
-    zoom = storedZoom;
-  }
-
-  String json = "{";
-  json += "\"lat\":" + String(lat, 6) + ",";
-  json += "\"lng\":" + String(lng, 6) + ",";
-  json += "\"zoom\":" + String(zoom, 0) + ",";
-  json += "\"text\":\"" + jsonEscape(textString) + "\",";
-  json += "\"pos\":\"" + jsonEscape(posString) + "\"";
-  json += "}";
-
-  sendCorsHeaders();
-  server.send(200, "application/json", json);
-}
-
 void handleLocationPost() {
-  sendCorsHeaders();
   if (!server.hasArg("lat") || !server.hasArg("lng") || !server.hasArg("zoom")) {
-    server.send(400, "application/json", "{\"error\":\"missing parameters\"}");
+    server.send(400, "text/plain", "Missing parameters");
     return;
   }
 
@@ -372,7 +248,7 @@ void handleLocationPost() {
   double lng = server.arg("lng").toDouble();
   double zoom = server.arg("zoom").toDouble();
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180 || isnan(lat) || isnan(lng)) {
-    server.send(400, "application/json", "{\"error\":\"invalid coordinates\"}");
+    server.send(400, "text/plain", "Invalid coordinates");
     return;
   }
   if (isnan(zoom)) {
@@ -482,17 +358,7 @@ void startWebServer(){
   updateTime();
   M5.Log.println("RTC updated");
 
-  server.on("/", handleRoot);
-  server.on("/api/location", HTTP_OPTIONS, handleLocationOptions);
-  server.on("/api/location", HTTP_GET, []() {
-    // クエリパラメータに lat, lng, zoom があればPOSTハンドラを使用
-    if (server.hasArg("lat") && server.hasArg("lng") && server.hasArg("zoom")) {
-      handleLocationPost();
-    } else {
-      handleLocationGet();
-    }
-  });
-  server.on("/api/location", HTTP_POST, handleLocationPost);
+  server.on("/api/location", HTTP_GET, handleLocationPost);
   server.onNotFound(handleNotFound);
   server.begin();
 
