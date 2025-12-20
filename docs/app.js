@@ -74,24 +74,6 @@ function buildShareUrl(lat, lng, zoom, comment) {
   return base + query;
 }
 
-function toAbsoluteUrl(url) {
-  if (!url) {
-    return '';
-  }
-  var origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
-  var absoluteUrl;
-  try {
-    absoluteUrl = new URL(url, origin).href;
-  } catch (e) {
-    return origin + (url.charAt(0) === '/' ? url : '/' + url);
-  }
-  // オープンリダイレクト対策: 同一オリジンのみ許可
-  if (absoluteUrl.indexOf(origin) !== 0) {
-    return origin + '/';
-  }
-  return absoluteUrl;
-}
-
 // 設定読み込み関連
 function parseConfigFromQuery() {
   var p = getUrlParameter('p');
@@ -153,7 +135,7 @@ function collectFormValues() {
   };
 }
 
-function submitLocationViaForm(payload, returnUrl) {
+function submitLocationViaForm(payload) {
   var base = resolveDeviceBaseUrl();
   if (!base) {
     alert('d パラメータが不足しています。QRコードからページを開いてください。');
@@ -166,9 +148,6 @@ function submitLocationViaForm(payload, returnUrl) {
   params.append('lng', payload.lng);
   params.append('zoom', payload.zoom);
   params.append('text', payload.comment || '');
-  if (returnUrl) {
-    params.append('return', toAbsoluteUrl(returnUrl));
-  }
   
   // GETリクエストとしてURLに遷移
   var apiUrl = buildApiUrl('/api/location') + '?' + params.toString();
@@ -178,18 +157,16 @@ function submitLocationViaForm(payload, returnUrl) {
 
 function updateUrl() {
   var payload = collectFormValues();
+  if (editmode) {
+    submitLocationViaForm(payload);
+    return;
+  }
   var targetUrl = buildShareUrl(
     payload.lat,
     payload.lng,
     payload.zoom,
     payload.comment
   );
-  if (editmode) {
-    if (!submitLocationViaForm(payload, targetUrl)) {
-      window.location.href = targetUrl;
-    }
-    return;
-  }
   window.location.href = targetUrl;
 }
 

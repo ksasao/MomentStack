@@ -181,63 +181,6 @@ String composePosString(double lat, double lng, double zoom) {
   return result;
 }
 
-String stripQueryParameter(const String &url, const char *paramName) {
-  if (!paramName) {
-    return url;
-  }
-  int hashIndex = url.indexOf('#');
-  String fragment = "";
-  String working = url;
-  if (hashIndex >= 0) {
-    fragment = url.substring(hashIndex);
-    working = url.substring(0, hashIndex);
-  }
-  int question = working.indexOf('?');
-  if (question < 0) {
-    return working + fragment;
-  }
-  String base = working.substring(0, question);
-  String query = working.substring(question + 1);
-  String filtered;
-  String key = String(paramName);
-  int keyLen = key.length();
-  int start = 0;
-  while (start <= query.length()) {
-    int amp = query.indexOf('&', start);
-    String token;
-    if (amp < 0) {
-      token = query.substring(start);
-      start = query.length() + 1;
-    } else {
-      token = query.substring(start, amp);
-      start = amp + 1;
-    }
-    if (token.length() == 0) {
-      continue;
-    }
-    bool drop = false;
-    if (token.startsWith(key)) {
-      if (token.length() == keyLen) {
-        drop = true;
-      } else if (token.length() > keyLen && token.charAt(keyLen) == '=') {
-        drop = true;
-      }
-    }
-    if (!drop) {
-      if (filtered.length() > 0) {
-        filtered += "&";
-      }
-      filtered += token;
-    }
-  }
-  String rebuilt = base;
-  if (filtered.length() > 0) {
-    rebuilt += "?";
-    rebuilt += filtered;
-  }
-  return rebuilt + fragment;
-}
-
 void handleLocationPost() {
   if (!server.hasArg("lat") || !server.hasArg("lng") || !server.hasArg("zoom")) {
     server.send(400, "text/plain", "Missing parameters");
@@ -268,18 +211,11 @@ void handleLocationPost() {
   preferences.putString("text", textString);
   preferences.end();
 
-  String shareUrl = String(kConfigPageUrl);
-  shareUrl += (shareUrl.indexOf('?') >= 0 ? '&' : '?');
-  shareUrl += "p=" + urlEncode(posString);
-  shareUrl += "&t=" + urlEncode(textString);
-
-  String targetUrl = shareUrl;
-  if (server.hasArg("return")) {
-    String requested = server.arg("return");
-    if (requested.length() > 0) {
-      targetUrl = stripQueryParameter(requested, "d");
-    }
-  }
+  // Preferenceに保存された値を使ってURLを構築
+  String targetUrl = String(kConfigPageUrl);
+  targetUrl += (targetUrl.indexOf('?') >= 0 ? '&' : '?');
+  targetUrl += "p=" + urlEncode(posString);
+  targetUrl += "&t=" + urlEncode(textString);
 
   server.sendHeader("Connection", "close");
   server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate");
