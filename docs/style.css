@@ -71,3 +71,31 @@ input {
 #currentLocationBtn.active svg {
   fill: #ffffff;
 }
+
+#authorLink {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: #000000;
+  font-family: sans-serif;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+#authorLink:hover {
+  text-decoration: underline;
+}
+
+#authorLink svg {
+  width: 16px;
+  height: 16px;
+  fill: #000000;
+}
